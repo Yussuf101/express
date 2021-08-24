@@ -1,6 +1,9 @@
 const express = require("express");
 const bcrypt = require("bcrypt");
+const {connection} = require("./database");
+const {addUser, listUsers} = require("./utils/user");
 require("dotenv").config();
+
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -24,19 +27,25 @@ app.get("/register", (req,res)=>{
     });
 });
 
-app.post("/register", (req, res)=>{
-    bcrypt.genSalt(saltRounds, (err, salt)=>{
-        if(err){
-            res.status(500).json({"message": `Somthing went wrong`, "error": err});
-        }
-        bcrypt.hash(req,body.password, salt, (err,hash)=>{
-            if(result){
-                res.status(201).json({"message":`Hashed password is: ${hash}`});
-            }else{
-                res.status(201).json({"message":`Hashed password is: ${hash}`});
-            }
-        });
-    });
+app.post("/register", async(req, res) => {
+    if (req.body.password !== req.body.checkPassword) {
+        return res.status(401).json({"message": `Passwords don't match`});
+    } else if (!req.body.name) {
+        return res.status(401).json({"message": `No username provided`});
+    }
+
+    const salt = await bcrypt.genSalt(saltRounds);
+    const hash = await bcrypt.hash(req.body.password, salt);
+
+    addUser(req.body.name, hash);
+    res.status(201).json({"users": await listUsers()});
+
+    // User entered two different passwords
+    /*if (await bcrypt.compare(req.body.checkPassword, hash)) {
+        res.status(201).json({"message": `Password ${req.body.checkPassword} matches ${hash}`});
+    } else {
+        res.status(401).json({"message": `Password ${req.body.checkPassword} does not match ${hash}`});
+    }*/
 });
 
 app.post("/:username/", (req, res) => {
@@ -52,5 +61,6 @@ app.post("/:username/:project", (req, res) => {
 });
 
 app.listen(port, () => {
+    connection.authenticate();
     console.log("App is online");
 });
